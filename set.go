@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/redis/go-redis/v8"
+	"github.com/go-redis/redis/v8"
 )
 
 type nothing struct{}
