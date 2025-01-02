@@ -3,6 +3,8 @@ package redisstringset
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"sync"
 
@@ -15,13 +17,16 @@ type Set struct {
 	sync.Mutex
 	redisClient *redis.Client
 	key         string
+	logger      *log.Logger
 }
 
 // New returns a Set backed by Redis, containing the values provided in the arguments.
 func New(redisClient *redis.Client, key string, initial ...string) *Set {
+	logger := log.New(os.Stdout, "RedisSet: ", log.LstdFlags)
 	s := &Set{
 		redisClient: redisClient,
 		key:         key,
+		logger:      logger,
 	}
 
 	if len(initial) > 0 {
@@ -42,7 +47,9 @@ func (s *Set) Close() {
 	s.Lock()
 	defer s.Unlock()
 
-	s.redisClient.Del(context.Background(), s.key)
+	if _, err := s.redisClient.Del(context.Background(), s.key).Result(); err != nil {
+		s.logger.Printf("Error deleting key %s: %v", s.key, err)
+	}
 }
 
 // Has returns true if the receiver Set already contains the element string argument.
@@ -50,7 +57,11 @@ func (s *Set) Has(element string) bool {
 	s.Lock()
 	defer s.Unlock()
 
-	result, _ := s.redisClient.SIsMember(context.Background(), s.key, strings.ToLower(element)).Result()
+	result, err := s.redisClient.SIsMember(context.Background(), s.key, strings.ToLower(element)).Result()
+	if err != nil {
+		s.logger.Printf("Error checking membership for %s: %v", element, err)
+		return false
+	}
 	return result
 }
 
@@ -59,7 +70,9 @@ func (s *Set) Insert(element string) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.redisClient.SAdd(context.Background(), s.key, strings.ToLower(element))
+	if _, err := s.redisClient.SAdd(context.Background(), s.key, strings.ToLower(element)).Result(); err != nil {
+		s.logger.Printf("Error inserting %s into %s: %v", element, s.key, err)
+	}
 }
 
 // InsertMany adds all the elements strings into the receiver Set.
@@ -74,7 +87,9 @@ func (s *Set) Remove(element string) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.redisClient.SRem(context.Background(), s.key, strings.ToLower(element))
+	if _, err := s.redisClient.SRem(context.Background(), s.key, strings.ToLower(element)).Result(); err != nil {
+		s.logger.Printf("Error removing %s from %s: %v", element, s.key, err)
+	}
 }
 
 // Slice returns a string slice that contains all the elements in the Set.
@@ -82,7 +97,11 @@ func (s *Set) Slice() []string {
 	s.Lock()
 	defer s.Unlock()
 
-	result, _ := s.redisClient.SMembers(context.Background(), s.key).Result()
+	result, err := s.redisClient.SMembers(context.Background(), s.key).Result()
+	if err != nil {
+		s.logger.Printf("Error retrieving members for %s: %v", s.key, err)
+		return []string{}
+	}
 	return result
 }
 
@@ -98,7 +117,11 @@ func (s *Set) Len() int {
 	s.Lock()
 	defer s.Unlock()
 
-	result, _ := s.redisClient.SCard(context.Background(), s.key).Result()
+	result, err := s.redisClient.SCard(context.Background(), s.key).Result()
+	if err != nil {
+		s.logger.Printf("Error getting length of %s: %v", s.key, err)
+		return 0
+	}
 	return int(result)
 }
 
@@ -131,7 +154,7 @@ func (s *Set) String() string {
 // Set implements the flag.Value interface.
 func (s *Set) Set(input string) error {
 	if input == "" {
-		return fmt.Errorf("String parsing failed")
+		return fmt.Errorf("string parsing failed")
 	}
 
 	for _, item := range strings.Split(input, ",") {
