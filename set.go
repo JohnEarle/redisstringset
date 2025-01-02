@@ -77,7 +77,10 @@ func (s *Set) Insert(element string) {
 
 // InsertMany adds all the elements strings into the receiver Set.
 func (s *Set) InsertMany(elements ...string) {
+	s.Lock()
+	defer s.Unlock()
 	for _, i := range elements {
+
 		s.Insert(i)
 	}
 }
@@ -107,6 +110,8 @@ func (s *Set) Slice() []string {
 
 // Union adds all the elements from the other Set argument into the receiver Set.
 func (s *Set) Union(other *Set) {
+	s.Lock()
+	defer s.Unlock()
 	for _, item := range other.Slice() {
 		s.Insert(item)
 	}
@@ -127,6 +132,8 @@ func (s *Set) Len() int {
 
 // Subtract removes all elements in the other Set argument from the receiver Set.
 func (s *Set) Subtract(other *Set) {
+	s.Lock()
+	defer s.Unlock()
 	for _, item := range other.Slice() {
 		s.Remove(item)
 	}
@@ -148,11 +155,15 @@ func (s *Set) Intersect(other *Set) {
 
 // String implements the flag.Value interface.
 func (s *Set) String() string {
+	s.Lock()
+	defer s.Unlock()
 	return strings.Join(s.Slice(), ",")
 }
 
 // Set implements the flag.Value interface.
 func (s *Set) Set(input string) error {
+	s.Lock()
+	defer s.Unlock()
 	if input == "" {
 		return fmt.Errorf("string parsing failed")
 	}
